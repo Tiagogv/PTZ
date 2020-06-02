@@ -1,0 +1,8 @@
+{
+    "port": "/dev/tty.usbmodem14201",
+    "board": "arduino:megaavr:nona4809",
+    "programmer": "AVRISP mkII",
+    "configuration": "mode=off",
+    "sketch": "ptz.ino",
+    "output": "./build"
+}
