@@ -321,8 +321,14 @@ void setup()
 {
     Serial.begin(9600);
 
-    byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
-    Ethernet.begin(mac);
+    if (config.getDHCP())
+    {
+        Ethernet.begin(config.getMAC());
+    }
+    else
+    {
+        Ethernet.begin(config.getMAC(), config.getIP());
+    }
 
     Serial.println(Ethernet.localIP());
 
@@ -334,6 +340,11 @@ void setup()
 
 void loop()
 {
+    if (config.getDHCP())
+    {
+        Ethernet.maintain();
+    }
+
     visca.loop();
 
     if (visca.hasCommand())

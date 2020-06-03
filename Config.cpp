@@ -1,7 +1,6 @@
 
 #include "Config.hpp"
 
-#include <SPI.h>
 #include <Ethernet.h>
 #include <aWOT.h>
 #include "StaticFiles.h"
@@ -13,21 +12,13 @@
 EthernetServer server(80);
 Application app;
 
-IPAddress _ip;
-byte *_mac;
-int _vmixInput;
-bool _dhcp;
+IPAddress _ip(EEPROM.read(0), EEPROM.read(1), EEPROM.read(2), EEPROM.read(3));
 
-IPAddress readIP()
-{
-    return IPAddress(EEPROM.read(0), EEPROM.read(1), EEPROM.read(2), EEPROM.read(3));
-}
-
-void writeIP(IPAddress ip)
+void writeIP()
 {
     for (int i = 0; i < 4; i++)
     {
-        EEPROM.update(i, ip[i]);
+        EEPROM.update(i, _ip[i]);
     }
 }
 
@@ -71,45 +62,43 @@ void writeDHCP(bool dchp)
     EEPROM.update(10, dchp);
 }
 
+byte *_mac = readMAC();
+int _vmixInput = readVmixInput();
+bool _dhcp = readDHCP();
+
 void setIP(char *ip)
 {
     String ipStr = String(ip);
     ipStr.trim();
 
-    char ipNumber[3];
-    int *ipNumbers[4];
     int idx = 0;
     int dotIdx = 0;
 
     for (int i = 0; i < 4; i++)
     {
-        dotIdx = ipStr.indexOf(".", dotIdx + 1);
+        dotIdx = ipStr.indexOf(".", idx);
 
         if (i < 3)
         {
-            ipNumbers[i] = ipStr.substring(idx, dotIdx - 1).toInt();
+            _ip[i] = ipStr.substring(idx, dotIdx).toInt();
         }
         else
         {
-            ipNumbers[i] = ipStr.substring(idx).toInt();
+            _ip[i] = ipStr.substring(idx).toInt();
         }
 
         idx = dotIdx + 1;
     }
 
-    _ip = IPAddress(ipNumbers[0], ipNumbers[1], ipNumbers[2], ipNumbers[3]);
-
-    writeIP(_ip);
+    writeIP();
 }
 
 void setMAC(char *mac)
 {
-
     String macStr = String(mac);
 
     macStr.toUpperCase();
 
-    byte macArray[6];
     int byteIdx = 0;
     int byteShift = 4;
     int value = 0;
@@ -124,6 +113,7 @@ void setMAC(char *mac)
         {
             byteIdx++;
             byteShift = 4;
+            currentByte = 0;
             continue;
         }
 
@@ -136,26 +126,17 @@ void setMAC(char *mac)
             value = ch - 'A' + 10;
         }
 
-        currentByte += (value << byteShift);
-        macArray[byteIdx] = currentByte;
-        byteShift -= 4;
+        currentByte = currentByte + ((value & 0x0F) << byteShift);
+        _mac[byteIdx] = currentByte;
+        byteShift = 0;
     }
 
-    _mac = macArray;
-    writeMAC(macArray);
+    writeMAC(_mac);
 }
 
-void setDHCP(char *value)
+void setDHCP(bool value)
 {
-    if (value == "false")
-    {
-        _dhcp = false;
-    }
-    else
-    {
-        _dhcp = true;
-    }
-
+    _dhcp = value;
     writeDHCP(_dhcp);
 }
 
@@ -173,9 +154,10 @@ void getConfig(Request &req, Response &res)
     const size_t capacity = JSON_OBJECT_SIZE(4) + 56;
     StaticJsonDocument<capacity> doc;
 
-    char ipString[15];
-    sprintf(ipString, "%d.%d.%d.%d", _ip[0], _ip[1], _ip[2], _ip[3]);
+    String ipString = String(_ip[0]) + "." + _ip[1] + "." + _ip[2] + "." + _ip[3];
+
     char macString[17];
+
     sprintf(macString, "%02X:%02X:%02X:%02X:%02X:%02X", _mac[0], _mac[1], _mac[2], _mac[3], _mac[4], _mac[5]);
 
     doc["ip"] = ipString;
@@ -190,6 +172,7 @@ void getConfig(Request &req, Response &res)
 
     res.set("Content-Type", "application/json");
     res.set("Content-Length", lengthStr);
+    res.set("Cache-Control", "no-cache");
     char output[200];
     serializeJson(doc, output);
     res.write(output, length);
@@ -199,29 +182,36 @@ void postConfig(Request &req, Response &res)
 {
     char name[15];
     char value[100];
+    String formName;
+    bool setDhcp = false;
 
     while (req.form(name, 15, value, 100))
     {
-        if (name == "ip")
+        formName = String(name);
+        formName.trim();
+
+        if (formName == "ip")
         {
             setIP(value);
         }
 
-        if (name == "mac")
+        if (formName == "mac")
         {
             setMAC(value);
         }
 
-        if (name == "dhcp")
+        if (formName == "dhcp")
         {
-            setDHCP(value);
+            setDhcp = true;
         }
 
-        if (name == "vmixInput")
+        if (formName == "vmixInput")
         {
             setVmixInput(value);
         }
     }
+
+    setDHCP(setDhcp);
 
     res.set("Content-Length", "0");
     res.set("Location", "/");
@@ -246,14 +236,6 @@ void Config::setup()
     server.begin();
 }
 
-void Config::load()
-{
-    _ip = readIP();
-    _mac = readMAC();
-    _vmixInput = readVmixInput();
-    _dhcp = readDHCP();
-}
-
 IPAddress Config::getIP()
 {
     return _ip;
@@ -276,7 +258,6 @@ int Config::getVmixInput()
 
 Config::Config()
 {
-    load();
 }
 
 Config::~Config()

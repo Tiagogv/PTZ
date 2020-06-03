@@ -9,6 +9,11 @@ function setFormValues() {
     ip().val(result.ip);
     mac().val(result.mac);
     dhcp().val(result.dhcp);
+    if (result.dhcp) {
+      dhcp().prop("checked", true);
+      ip().prop("disabled", true);
+    }
+
     vmixInput().val(result.vmixInput);
   });
 }

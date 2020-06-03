@@ -28,6 +28,7 @@
         "__string": "cpp",
         "string": "cpp",
         "string_view": "cpp",
-        "istream": "cpp"
+        "istream": "cpp",
+        "typeinfo": "cpp"
     }
 }

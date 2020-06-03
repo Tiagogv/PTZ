@@ -1,10 +1,5 @@
 #include "Visca.hpp"
 
-#include <SPI.h>
-#include <Ethernet.h>
-#include <EthernetUdp.h>
-#include <Arduino.h>
-
 using namespace Visca;
 
 void ViscaProtocol::begin()
@@ -85,15 +80,6 @@ void ViscaProtocol::sendInquiryResult(unsigned char *value, int size)
     Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
     Udp.write(_replyBuffer, size + 11);
     Udp.endPacket();
-
-    Serial.print("Reply: ");
-
-    for (int i = 0; i < size + 11; i++)
-    {
-        Serial.print(_replyBuffer[i], HEX);
-        Serial.print(" ");
-    }
-    Serial.println();
 }
 
 void ViscaProtocol::sendError(VISCAError error)
@@ -188,13 +174,6 @@ void ViscaProtocol::fillReplyPayloadLength(unsigned int length)
 
 bool ViscaProtocol::parseCommand(int size)
 {
-    for (int i = 0; i < size; i++)
-    {
-        Serial.print(" ");
-        Serial.print(_packetBuffer[i], HEX);
-    }
-    Serial.println();
-
     if (size < 9 || size > 24)
     {
         return false;
