@@ -9,10 +9,10 @@
 #include <Ethernet.h>
 
 Config config;
-Lanc lanc(A7, A6);
+Lanc lanc(A6, A7);
 Camera camera(lanc);
 PanTilt panTilt;
-Visca::ViscaProtocol visca(52381);
+Visca::ViscaProtocol visca(1259);
 
 using namespace Visca;
 
@@ -74,6 +74,9 @@ void cameraLessVariableCommand(VISCACameraCommand type, int speed)
     case VISCACameraCommand::Focus:
         camera.focusFar();
         break;
+    case VISCACameraCommand::Iris:
+        camera.irisOpen();
+        break;
     }
 }
 
@@ -86,6 +89,9 @@ void cameraMoreVariableCommand(VISCACameraCommand type, int speed)
         break;
     case VISCACameraCommand::Focus:
         camera.focusNear();
+        break;
+    case VISCACameraCommand::Iris:
+        camera.irisClose();
         break;
     }
 }
@@ -177,47 +183,28 @@ void executeCameraCommand(ViscaCommand command)
 void executeCameraInquiry(ViscaCommand command)
 {
     unsigned char reply[] = {0x00, 0x00, 0x00, 0x00};
-    int replyLength = 0;
 
-    switch (command.message[0])
+    if (command.message[0] == VISCACameraInquiry::FocusInq)
     {
-    case VISCACameraInquiry::PowerInq:
-        replyLength = 1;
-        if (camera.isOn())
-        {
-            reply[0] = VISCABoolean::ON;
-        }
-        else
-        {
-            reply[0] = VISCABoolean::OFF;
-        }
-        break;
-    case VISCACameraInquiry::FocusModeInq:
-        replyLength = 1;
-        if (camera.getAutoFocus())
-        {
-            reply[0] = VISCABoolean::ON;
-        }
-        else
-        {
-            reply[0] = VISCABoolean::OFF;
-        }
-        break;
-    case VISCACameraInquiry::ZoomInq:
-        replyLength = 4;
+        int focus = camera.getFocus();
+
+        reply[0] = (focus >> 12) & 0x0F;
+        reply[1] = (focus >> 8) & 0x0F;
+        reply[2] = (focus >> 4) & 0x0F;
+        reply[3] = focus & 0x0F;
+        visca.sendInquiryResult(reply, 4);
+        return;
+    }
+
+    if (command.message[0] == VISCACameraInquiry::ZoomInq)
+    {
         int zoom = camera.getZoom();
 
         reply[0] = (zoom >> 12) & 0x0F;
         reply[1] = (zoom >> 8) & 0x0F;
         reply[2] = (zoom >> 4) & 0x0F;
         reply[3] = zoom & 0x0F;
-
-        break;
-    }
-
-    if (replyLength)
-    {
-        visca.sendInquiryResult(reply, replyLength);
+        visca.sendInquiryResult(reply, 4);
         return;
     }
 
@@ -235,14 +222,27 @@ void executeNormalPositionCommand(ViscaCommand command)
         return;
     }
 
+    PanDirection panDir = PanDirection::Right;
+    TiltDirection tiltDir = TiltDirection::Down;
+
+    if (command.message[3] == 0x02)
+    {
+        panDir = PanDirection::Left;
+    }
+
+    if (command.message[4] == 0x02)
+    {
+        tiltDir = TiltDirection::Up;
+    }
+
     if (!panStop)
     {
-        panTilt.pan(command.message[3] - 2, command.message[1]);
+        panTilt.pan(panDir, command.message[1]);
     }
 
     if (!tiltStop)
     {
-        panTilt.tilt(command.message[4] - 2, command.message[2]);
+        panTilt.tilt(tiltDir, command.message[2]);
     }
 }
 
@@ -274,9 +274,6 @@ void executePositionCommand(ViscaCommand command)
 
 void executePositionInquiry(ViscaCommand command)
 {
-    Serial.println("Pos Inq");
-    Serial.println(command.message[0], HEX);
-
     switch (command.message[0])
     {
     case VISCAPositionInquiry::PositionInq:
@@ -319,18 +316,29 @@ void executeInquiry(ViscaCommand command)
 
 void setup()
 {
-    Serial.begin(9600);
+   
+
+
+    pinMode(9, OUTPUT);
+
+    delay(1000);
+
+    digitalWrite(9, LOW);
+    delayMicroseconds(750);
+    digitalWrite(9, HIGH);
+
+    delay(10);
+
+    byte mac[] = {0x00, 0x08, 0xdc, 0x27, 0x2F, 0x6D};
 
     if (config.getDHCP())
     {
-        Ethernet.begin(config.getMAC());
+        Ethernet.begin(mac);
     }
     else
     {
-        Ethernet.begin(config.getMAC(), config.getIP());
+        Ethernet.begin(mac, config.getIP());
     }
-
-    Serial.println(Ethernet.localIP());
 
     config.setup();
     camera.setup();
@@ -340,6 +348,8 @@ void setup()
 
 void loop()
 {
+    config.loop();
+
     if (config.getDHCP())
     {
         Ethernet.maintain();
@@ -364,6 +374,4 @@ void loop()
 
     panTilt.loop();
     camera.loop();
-
-    config.loop();
 }

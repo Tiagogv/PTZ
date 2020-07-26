@@ -14,8 +14,6 @@ public:
 
     bool getDHCP();
     IPAddress getIP();
-    byte *getMAC();
-    int getVmixInput();
 
     ~Config();
 };

@@ -1,20 +1,25 @@
 const ip = () => $("#ip");
 const dhcp = () => $("#dhcp");
-const mac = () => $("#mac");
-const vmixInput = () => $("#vmixInput");
 
 function setFormValues() {
   jQuery.getJSON("config", function (result) {
-    console.log(result);
     ip().val(result.ip);
-    mac().val(result.mac);
     dhcp().val(result.dhcp);
     if (result.dhcp) {
       dhcp().prop("checked", true);
       ip().prop("disabled", true);
     }
+  });
+}
 
-    vmixInput().val(result.vmixInput);
+function setValues() {
+  jQuery.post({
+    url: "config",
+    data: JSON.stringify({
+      ip: ip().val(),
+      dhcp: dhcp().prop("checked"),
+    }),
+    contentType: "application/json"
   });
 }
 
@@ -29,5 +34,10 @@ $(document).ready(function () {
       ip().prop("disabled", false)();
       dhcp().val(false);
     }
+  });
+
+  $("#form").on("submit", function (e) {
+    e.preventDefault();
+    setValues();
   });
 });

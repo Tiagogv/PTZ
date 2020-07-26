@@ -1,5 +1,5 @@
 {
-    "port": "/dev/tty.usbmodem14201",
+    "port": "/dev/tty.usbmodem14101",
     "board": "arduino:megaavr:nona4809",
     "programmer": "AVRISP mkII",
     "configuration": "mode=off",

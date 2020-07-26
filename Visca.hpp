@@ -9,12 +9,9 @@ namespace Visca
 
     enum PayloadType
     {
-        VISCACommand = 0x0100,
-        VISCAInquiry = 0x0110,
-        VISCAReply = 0x0111,
-        VISCADeviceSetting = 0x0120,
-        ControlCommand = 0x0200,
-        ControlReply = 0x0201
+        VISCACommand = 0x01,
+        VISCAInquiry = 0x09,
+        VISCAReply = 0x50
     };
 
     enum VISCAType
@@ -81,8 +78,8 @@ namespace Visca
     {
         PowerInq = 0x00,
         ZoomInq = 0x47,
-        FocusModeInq = 0x38,
         FocusInq = 0x48,
+        FocusModeInq = 0x38,
         IrisInq = 0x4B
     };
 
@@ -123,26 +120,18 @@ namespace Visca
         unsigned char _packetBuffer[UDP_TX_PACKET_MAX_SIZE];
         unsigned char _commandBuffer[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-        bool parseCommand(int size);
-
-        bool parseControlCommand();
+        bool parseCommand(unsigned int size);
         bool parseVISCA(VISCAType type);
 
         EthernetUDP Udp;
-        unsigned long _sequence = 0;
         unsigned int _payloadType = 0;
         unsigned int _payloadLength = 0;
         unsigned int _commandType = 0;
         bool _hasCommand = false;
 
-        unsigned char _replyBuffer[24] = {0x01, 0x11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-        void fillReplySequence();
-        void fillReplyPayloadLength(unsigned int length);
+        unsigned char _replyBuffer[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
         void sendAck();
-        void sendControlAck();
-        void sendControlError();
     };
 
 } // namespace Visca

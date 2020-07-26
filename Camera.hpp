@@ -11,6 +11,7 @@ private:
     Lanc _lanc;
     bool _irisAuto = true;
     bool _autoFocus = true;
+    int _focus = 0;
     int _zoom = 0;
     int _zoomSpeed = 0;
 
@@ -41,6 +42,7 @@ public:
     void autoFocus(bool on);
     void toggleAutoFocus();
     bool getAutoFocus() { return _autoFocus; };
+    int getFocus() { return _focus; };
 
     void irisOpen();
     void irisClose();

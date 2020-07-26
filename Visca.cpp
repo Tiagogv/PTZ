@@ -18,28 +18,7 @@ void ViscaProtocol::loop()
 
     Udp.read(_packetBuffer, UDP_TX_PACKET_MAX_SIZE);
 
-    unsigned long lastSequence = _sequence;
-
     bool valid = parseCommand(packetSize);
-
-    fillReplySequence();
-
-    if (_payloadType == PayloadType::ControlCommand)
-    {
-        if (_commandType == ControlCommand::Reset)
-        {
-            _sequence = 0;
-            sendControlAck();
-        }
-        return;
-    }
-
-    if (_sequence <= lastSequence)
-    {
-        _sequence = lastSequence;
-        sendControlError();
-        return;
-    }
 
     if (!valid)
     {
@@ -63,132 +42,69 @@ void ViscaProtocol::loop()
 
 void ViscaProtocol::sendInquiryResult(unsigned char *value, int size)
 {
-    _replyBuffer[0] = 0x01;
-    _replyBuffer[1] = 0x11;
-    fillReplyPayloadLength(size + 3);
-
-    _replyBuffer[8] = 0x90;
-    _replyBuffer[9] = 0x50;
+    _replyBuffer[0] = 0x90;
+    _replyBuffer[1] = 0x50;
 
     for (int i = 0; i < size; i++)
     {
-        _replyBuffer[i + 10] = value[i];
+        _replyBuffer[i + 2] = value[i];
     }
 
-    _replyBuffer[size + 10] = 0xFF;
+    _replyBuffer[size + 2] = 0xFF;
 
     Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
-    Udp.write(_replyBuffer, size + 11);
+    Udp.write(_replyBuffer, size + 3);
     Udp.endPacket();
 }
 
 void ViscaProtocol::sendError(VISCAError error)
 {
-    _replyBuffer[0] = 0x01;
-    _replyBuffer[1] = 0x11;
-    fillReplyPayloadLength(4);
-
-    _replyBuffer[8] = 0x90;
-    _replyBuffer[9] = 0x60;
-    _replyBuffer[10] = error;
-    _replyBuffer[11] = 0xFF;
+    _replyBuffer[0] = 0x90;
+    _replyBuffer[1] = 0x60;
+    _replyBuffer[2] = error;
+    _replyBuffer[3] = 0xFF;
 
     Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
-    Udp.write(_replyBuffer, 12);
-    Udp.endPacket();
-}
-
-void ViscaProtocol::sendControlError()
-{
-    _replyBuffer[0] = 0x02;
-    _replyBuffer[1] = 0x00;
-
-    fillReplyPayloadLength(2);
-
-    _replyBuffer[8] = 0x0F;
-    _replyBuffer[9] = 0x01;
-
-    Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
-    Udp.write(_replyBuffer, 10);
+    Udp.write(_replyBuffer, 4);
     Udp.endPacket();
 }
 
 void ViscaProtocol::sendAck()
 {
-    _replyBuffer[0] = 0x01;
-    _replyBuffer[1] = 0x11;
-    fillReplyPayloadLength(3);
-
-    _replyBuffer[8] = 0x90;
-    _replyBuffer[9] = 0x41;
-    _replyBuffer[10] = 0xFF;
+    _replyBuffer[0] = 0x90;
+    _replyBuffer[1] = 0x41;
+    _replyBuffer[2] = 0xFF;
 
     Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
-    Udp.write(_replyBuffer, 11);
-    Udp.endPacket();
-}
-
-void ViscaProtocol::sendControlAck()
-{
-    _replyBuffer[0] = 0x02;
-    _replyBuffer[1] = 0x01;
-    fillReplyPayloadLength(1);
-
-    _replyBuffer[8] = 0x01;
-
-    Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
-    Udp.write(_replyBuffer, 9);
+    Udp.write(_replyBuffer, 3);
     Udp.endPacket();
 }
 
 void ViscaProtocol::sendCompletion()
 {
-    _replyBuffer[0] = 0x01;
-    _replyBuffer[1] = 0x11;
-    fillReplyPayloadLength(3);
-
-    _replyBuffer[8] = 0x90;
-    _replyBuffer[9] = 0x51;
-    _replyBuffer[10] = 0xFF;
+    _replyBuffer[0] = 0x90;
+    _replyBuffer[1] = 0x51;
+    _replyBuffer[2] = 0xFF;
 
     Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
-    Udp.write(_replyBuffer, 11);
+    Udp.write(_replyBuffer, 3);
     Udp.endPacket();
 }
 
-void ViscaProtocol::fillReplySequence()
+bool ViscaProtocol::parseCommand(unsigned int size)
 {
-    unsigned long sequence = _sequence + 1;
-
-    _replyBuffer[4] = sequence >> 24 & 0xFF;
-    _replyBuffer[5] = sequence >> 16 & 0xFF;
-    _replyBuffer[6] = sequence >> 8 & 0xFF;
-    _replyBuffer[7] = sequence & 0xFF;
-}
-
-void ViscaProtocol::fillReplyPayloadLength(unsigned int length)
-{
-    _replyBuffer[2] = (length >> 8) & 0xFF;
-    _replyBuffer[3] = length & 0xFF;
-}
-
-bool ViscaProtocol::parseCommand(int size)
-{
-    if (size < 9 || size > 24)
+    if (size < 5 || size > 16)
     {
         return false;
     }
 
-    _payloadLength = (_packetBuffer[2] << 8) + _packetBuffer[3];
-
-    if (_payloadLength > 16 || _payloadLength < 1)
+    if (_packetBuffer[size - 1] != 0xFF)
     {
         return false;
     }
 
-    _sequence = (_packetBuffer[4] << 24) + (_packetBuffer[5] << 16) + (_packetBuffer[6] << 8) + _packetBuffer[7];
-
-    _payloadType = (_packetBuffer[0] << 8) + _packetBuffer[1];
+    _payloadLength = size - 3;
+    _payloadType = _packetBuffer[1];
 
     switch (_payloadType)
     {
@@ -196,8 +112,6 @@ bool ViscaProtocol::parseCommand(int size)
         return parseVISCA(VISCAType::Command);
     case PayloadType::VISCAInquiry:
         return parseVISCA(VISCAType::Inquiry);
-    case PayloadType::ControlCommand:
-        return parseControlCommand();
     default:
         return false;
     }
@@ -205,54 +119,26 @@ bool ViscaProtocol::parseCommand(int size)
 
 bool ViscaProtocol::parseVISCA(VISCAType type)
 {
-    if (_payloadLength < 3 || _payloadLength > 16)
+    if (_payloadLength < 2 || _payloadLength > 13)
     {
         return false;
     }
 
-    if (_packetBuffer[8] != 0x81 || _packetBuffer[_payloadLength + 7] != 0xFF)
+    if (_packetBuffer[0] != 0x81)
     {
         return false;
     }
 
-    if (_packetBuffer[9] != type)
+    for (unsigned int i = 0; i < _payloadLength; i++)
     {
-        return false;
+        _commandBuffer[i] = _packetBuffer[i + 2];
     }
 
-    for (unsigned int i = 0; i < _payloadLength - 4; i++)
-    {
-        _commandBuffer[i] = _packetBuffer[i + 11];
-    }
-
-    _commandType = _packetBuffer[10];
+    _commandType = _packetBuffer[2];
 
     return true;
 }
 
-bool ViscaProtocol::parseControlCommand()
-{
-
-    if (_payloadLength > 2)
-    {
-        return false;
-    }
-
-    unsigned int cmd = _packetBuffer[8];
-
-    if (_payloadLength == 2)
-    {
-        cmd = (cmd << 8) + _packetBuffer[9];
-    }
-
-    if (cmd != ControlCommand::Reset && cmd != ControlCommand::ErrorMessage && cmd != ControlCommand::ErrorSequence)
-    {
-        return false;
-    }
-
-    _commandType = cmd;
-    return true;
-}
 
 ViscaCommand ViscaProtocol::getCommand()
 {
@@ -262,12 +148,12 @@ ViscaCommand ViscaProtocol::getCommand()
 
     command.inquiry = _payloadType == PayloadType::VISCAInquiry;
 
-    for (int i = 0; i < _payloadLength - 4; i++)
+    for (int i = 0; i < _payloadLength-1; i++)
     {
-        command.message[i] = _commandBuffer[i];
+        command.message[i] = _commandBuffer[i+1];
     }
 
-    command.messageLength = _payloadLength - 4;
+    command.messageLength = _payloadLength-1;
     command.type = VISCAType(_commandType & 0xFF);
 
     return command;

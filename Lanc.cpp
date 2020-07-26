@@ -18,6 +18,7 @@ void Lanc::setup()
 {
     on();
 
+    Serial.begin(9600);
     delay(2000);
 
     long pulse = pulseIn(_input, HIGH, 10000);
@@ -25,7 +26,6 @@ void Lanc::setup()
     if (pulse < 6000 && pulse > 0)
     {
         _connected = true;
-        Serial.println("LANC Connected");
     }
 
     pinMode(_output, OUTPUT);
